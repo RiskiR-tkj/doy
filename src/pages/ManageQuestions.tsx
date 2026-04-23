@@ -13,7 +13,8 @@ import {
   FileText,
   LayoutGrid,
   Upload,
-  Download
+  Download,
+  Edit3
 } from 'lucide-react';
 import Papa from 'papaparse';
 import { supabase, Question, Exam } from '../lib/supabase';
@@ -31,6 +32,7 @@ const ManageQuestions = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [activeForm, setActiveForm] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
@@ -70,14 +72,28 @@ const ManageQuestions = () => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      const { data, error } = await supabase.from('questions').insert({
-        exam_id: examId,
-        ...newQuestion
-      }).select().single();
+      if (editingQuestionId) {
+        const { data, error } = await supabase
+          .from('questions')
+          .update(newQuestion)
+          .eq('id', editingQuestionId)
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
+        setQuestions(questions.map(q => q.id === editingQuestionId ? data : q));
+        setEditingQuestionId(null);
+        alert('Soal berhasil diperbarui!');
+      } else {
+        const { data, error } = await supabase.from('questions').insert({
+          exam_id: examId,
+          ...newQuestion
+        }).select().single();
+
+        if (error) throw error;
+        setQuestions([...questions, data]);
+      }
       
-      setQuestions([...questions, data]);
       setNewQuestion({
         question_text: '',
         option_a: '',
@@ -88,11 +104,25 @@ const ManageQuestions = () => {
       });
       setActiveForm(false);
     } catch (err) {
-      alert('Gagal menambah soal');
+      alert(editingQuestionId ? 'Gagal memperbarui soal' : 'Gagal menambah soal');
       console.error(err);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const startEditQuestion = (q: Question) => {
+    setNewQuestion({
+      question_text: q.question_text,
+      option_a: q.option_a,
+      option_b: q.option_b,
+      option_c: q.option_c,
+      option_d: q.option_d,
+      correct_answer: q.correct_answer as any
+    });
+    setEditingQuestionId(q.id);
+    setActiveForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,16 +302,36 @@ const ManageQuestions = () => {
                 ))}
               </div>
 
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="w-full bg-primary-600 hover:bg-primary-700 text-white py-5 rounded-full font-black tracking-widest text-xs transition-all flex items-center justify-center gap-3 shadow-xl shadow-primary-200"
-                >
-                  {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                  SIMPAN SOAL KE DATABASE
-                </button>
-              </div>
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white py-5 rounded-full font-black tracking-widest text-xs transition-all flex items-center justify-center gap-3 shadow-xl shadow-primary-200 uppercase italic"
+                    >
+                      {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                      {editingQuestionId ? 'Update Soal' : 'Simpan Soal ke Database'}
+                    </button>
+                    {editingQuestionId && (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setEditingQuestionId(null);
+                          setActiveForm(false);
+                          setNewQuestion({
+                            question_text: '',
+                            option_a: '',
+                            option_b: '',
+                            option_c: '',
+                            option_d: '',
+                            correct_answer: 'a'
+                          });
+                        }}
+                        className="w-full mt-4 text-center text-[10px] font-black tracking-widest text-gray-400 uppercase hover:text-red-600 transition-colors"
+                      >
+                        Batalkan Perubahan
+                      </button>
+                    )}
+                  </div>
             </form>
           </motion.div>
         )}
@@ -324,12 +374,22 @@ const ManageQuestions = () => {
                     ))}
                   </div>
                 </div>
-                <button 
-                  onClick={() => deleteQuestion(q.id)}
-                  className="p-3 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                >
-                  <Trash2 size={20} />
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={() => startEditQuestion(q)}
+                    className="p-3 text-gray-300 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
+                    title="Edit Soal"
+                  >
+                    <Edit3 size={20} />
+                  </button>
+                  <button 
+                    onClick={() => deleteQuestion(q.id)}
+                    className="p-3 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                    title="Hapus Soal"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>

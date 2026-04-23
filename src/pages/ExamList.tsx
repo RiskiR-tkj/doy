@@ -48,7 +48,7 @@ const ExamList = () => {
     try {
       const { data, error } = await supabase
         .from('exams')
-        .select('*')
+        .select('*, questions(count)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -192,7 +192,7 @@ const ExamList = () => {
                   </div>
                   <div className="flex items-center gap-2 text-gray-400">
                     <CheckCircle2 size={14} />
-                    <span>40 Soal</span>
+                    <span>{(exam as any).questions?.[0]?.count || 0} Soal</span>
                   </div>
                 </div>
 

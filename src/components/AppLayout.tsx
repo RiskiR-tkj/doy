@@ -62,7 +62,7 @@ const AppLayout = () => {
           <nav className="space-y-1">
             {filteredMenu.map((item) => (
               <NavLink
-                key={item.path}
+                key={item.name}
                 to={item.path}
                 end={item.path === '/app'}
                 className={({ isActive }) => cn(
