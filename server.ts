@@ -8,8 +8,10 @@ async function startServer() {
   const PORT = 3000;
   const root = process.cwd();
 
+  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(path.resolve(root, "dist"));
+  
   console.log(`[Server] Starting server...`);
-  console.log(`[Server] NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+  console.log(`[Server] Detected Environment: ${isProd ? "production" : "development"}`);
   console.log(`[Server] Root Directory: ${root}`);
 
   app.use(express.json());
@@ -17,7 +19,7 @@ async function startServer() {
   // Favicon fallback
   app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-  // Always log requests to help debug 404s
+  // Always log requests to help debug
   app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
@@ -25,12 +27,11 @@ async function startServer() {
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    console.log(`[Server] Health check hit`);
-    res.json({ status: "ok", env: process.env.NODE_ENV });
+    res.json({ status: "ok", mode: isProd ? "production" : "development" });
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    console.log("[Server] Dev mode: Starting Vite...");
+  if (!isProd) {
+    console.log("[Server] Development mode: Starting Vite middleware...");
     try {
       const vite = await createViteServer({
         server: { middlewareMode: true },
@@ -41,7 +42,7 @@ async function startServer() {
       app.get("*", async (req, res, next) => {
         const url = req.originalUrl;
         
-        // If it looks like a file, let Vite handle it or fail
+        // If it looks like a file (has an extension) and Vite middleware didn't catch it, let it pass
         if (url.includes('.') && !url.endsWith('.html')) {
           return next();
         }
@@ -49,22 +50,24 @@ async function startServer() {
         try {
           const templatePath = path.resolve(root, "index.html");
           if (!fs.existsSync(templatePath)) {
-            console.error(`[Server] index.html not found at ${templatePath}`);
             return next();
           }
           let template = fs.readFileSync(templatePath, "utf-8");
           template = await vite.transformIndexHtml(url, template);
           res.status(200).set({ "Content-Type": "text/html" }).end(template);
-        } catch (e) {
-          vite.ssrFixStacktrace(e as Error);
+        } catch (e: any) {
+          vite.ssrFixStacktrace(e);
           next(e);
         }
       });
     } catch (viteError) {
       console.error("[Server] Failed to start Vite:", viteError);
+      app.get("*", (req, res) => {
+        res.status(500).send("Vite failed to start. Check server logs.");
+      });
     }
   } else {
-    console.log("[Server] Production mode: Serving dist/");
+    console.log("[Server] Production mode: Serving dist/ folder");
     const distPath = path.resolve(root, "dist");
     
     // Serve static assets
@@ -76,19 +79,24 @@ async function startServer() {
     // For any other request, send index.html
     app.get("*", (req, res) => {
       const indexPath = path.resolve(distPath, "index.html");
-      const rootIndex = path.resolve(root, "index.html");
-      
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
-      } else if (fs.existsSync(rootIndex)) {
-        console.warn(`[Server] dist/index.html missing, falling back to root index.html`);
-        res.sendFile(rootIndex);
       } else {
-        console.error(`[Server] Critical: No index.html found anywhere!`);
-        res.status(404).send("Application files missing. Please rebuild.");
+        const rootIndex = path.resolve(root, "index.html");
+        if (fs.existsSync(rootIndex)) {
+            res.sendFile(rootIndex);
+        } else {
+            res.status(404).send("Application files missing. Please build the app.");
+        }
       }
     });
   }
+
+  // Final catch-all for anything not handled by Vite or static or SPA fallback
+  app.use((req, res) => {
+    console.warn(`[Server] 404 Not Found: ${req.method} ${req.url}`);
+    res.status(404).send(`404: The route ${req.url} was not found on this server.`);
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Server] Listening on http://0.0.0.0:${PORT}`);
