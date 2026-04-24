@@ -14,6 +14,9 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Favicon fallback
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
+
   // Always log requests to help debug 404s
   app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -22,40 +25,49 @@ async function startServer() {
 
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+    console.log(`[Server] Health check hit`);
+    res.json({ status: "ok", env: process.env.NODE_ENV });
   });
 
   if (process.env.NODE_ENV !== "production") {
     console.log("[Server] Dev mode: Starting Vite...");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-    
-    app.get("*", async (req, res, next) => {
-      const url = req.originalUrl;
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
       
-      // If it looks like a file, let Vite handle it or fail
-      if (url.includes('.') && !url.endsWith('.html')) {
-        return next();
-      }
+      app.get("*", async (req, res, next) => {
+        const url = req.originalUrl;
+        
+        // If it looks like a file, let Vite handle it or fail
+        if (url.includes('.') && !url.endsWith('.html')) {
+          return next();
+        }
 
-      try {
-        const templatePath = path.resolve(root, "index.html");
-        let template = fs.readFileSync(templatePath, "utf-8");
-        template = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ "Content-Type": "text/html" }).end(template);
-      } catch (e) {
-        vite.ssrFixStacktrace(e as Error);
-        next(e);
-      }
-    });
+        try {
+          const templatePath = path.resolve(root, "index.html");
+          if (!fs.existsSync(templatePath)) {
+            console.error(`[Server] index.html not found at ${templatePath}`);
+            return next();
+          }
+          let template = fs.readFileSync(templatePath, "utf-8");
+          template = await vite.transformIndexHtml(url, template);
+          res.status(200).set({ "Content-Type": "text/html" }).end(template);
+        } catch (e) {
+          vite.ssrFixStacktrace(e as Error);
+          next(e);
+        }
+      });
+    } catch (viteError) {
+      console.error("[Server] Failed to start Vite:", viteError);
+    }
   } else {
     console.log("[Server] Production mode: Serving dist/");
     const distPath = path.resolve(root, "dist");
     
-    // Serve static assets with a long cache
+    // Serve static assets
     app.use(express.static(distPath, {
       maxAge: '1d',
       index: false
@@ -64,10 +76,15 @@ async function startServer() {
     // For any other request, send index.html
     app.get("*", (req, res) => {
       const indexPath = path.resolve(distPath, "index.html");
+      const rootIndex = path.resolve(root, "index.html");
+      
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
+      } else if (fs.existsSync(rootIndex)) {
+        console.warn(`[Server] dist/index.html missing, falling back to root index.html`);
+        res.sendFile(rootIndex);
       } else {
-        console.error(`[Server] Critical: index.html not found in dist/`);
+        console.error(`[Server] Critical: No index.html found anywhere!`);
         res.status(404).send("Application files missing. Please rebuild.");
       }
     });
