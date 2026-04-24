@@ -25,7 +25,6 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     console.log("[Server] Dev mode: Starting Vite...");
     const vite = await createViteServer({
@@ -35,13 +34,17 @@ async function startServer() {
     app.use(vite.middlewares);
     
     app.get("*", async (req, res, next) => {
-      if (req.originalUrl.includes('.') && !req.originalUrl.endsWith('.html')) {
+      const url = req.originalUrl;
+      
+      // If it looks like a file, let Vite handle it or fail
+      if (url.includes('.') && !url.endsWith('.html')) {
         return next();
       }
+
       try {
         const templatePath = path.resolve(root, "index.html");
         let template = fs.readFileSync(templatePath, "utf-8");
-        template = await vite.transformIndexHtml(req.originalUrl, template);
+        template = await vite.transformIndexHtml(url, template);
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (e) {
         vite.ssrFixStacktrace(e as Error);
@@ -51,9 +54,22 @@ async function startServer() {
   } else {
     console.log("[Server] Production mode: Serving dist/");
     const distPath = path.resolve(root, "dist");
-    app.use(express.static(distPath));
+    
+    // Serve static assets with a long cache
+    app.use(express.static(distPath, {
+      maxAge: '1d',
+      index: false
+    }));
+
+    // For any other request, send index.html
     app.get("*", (req, res) => {
-      res.sendFile(path.resolve(distPath, "index.html"));
+      const indexPath = path.resolve(distPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        console.error(`[Server] Critical: index.html not found in dist/`);
+        res.status(404).send("Application files missing. Please rebuild.");
+      }
     });
   }
 
