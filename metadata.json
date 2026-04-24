@@ -1,6 +1,6 @@
 {
   "name": "SMK Prima Unggul CBT",
-  "description": "A comprehensive online examination system (Computer Based Test) with role-based access for Admin, Teacher, and Student of SMK Prima Unggul.",
+  "description": "A comprehensive Computer Based Test (CBT) system for SMK Prima Unggul, featuring role-based access for Admins, Teachers, and Students with a modern editorial design.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

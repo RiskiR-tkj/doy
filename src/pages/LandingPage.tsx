@@ -120,7 +120,7 @@ const LandingPage = () => {
             Gedung Pusat Keunggulan - Menyiapkan tenaga kerja profesional dan wirausahawan masa depan.
           </p>
           <div className="border-t border-gray-800 pt-8 text-sm text-gray-500">
-            © 2026 SMK Prima Unggul. All rights reserved.
+            © 2026 SMK Prima Unggul. v1.0.4 - All rights reserved.
           </div>
         </div>
       </footer>

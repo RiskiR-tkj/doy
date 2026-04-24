@@ -34,17 +34,17 @@ async function startServer() {
     });
     app.use(vite.middlewares);
     
-    // Vite middleware handles SPA fallback in middlewareMode: true with appType: 'spa' 
-    // but often we still need a fallback for the root if it doesn't.
-    // However, the instructions imply it's handled. 
-    // Let's add a minimal fallback just in case.
-    app.use("*", async (req, res, next) => {
-      const url = req.originalUrl;
+    app.get("*", async (req, res, next) => {
+      if (req.originalUrl.includes('.') && !req.originalUrl.endsWith('.html')) {
+        return next();
+      }
       try {
-        const template = fs.readFileSync(path.resolve(root, "index.html"), "utf-8");
-        const html = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+        const templatePath = path.resolve(root, "index.html");
+        let template = fs.readFileSync(templatePath, "utf-8");
+        template = await vite.transformIndexHtml(req.originalUrl, template);
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
         next(e);
       }
     });
