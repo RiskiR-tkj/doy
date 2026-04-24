@@ -6,16 +6,16 @@ import {
   Navigate, 
   useLocation 
 } from 'react-router-dom';
-import { useAuthStore } from './lib/store';
-import LandingPage from './pages/LandingPage';
-import LoginPage from './pages/LoginPage';
-import AppLayout from './components/AppLayout';
-import Dashboard from './pages/Dashboard';
-import ExamList from './pages/ExamList';
-import ExamSession from './pages/ExamSession';
-import ResultsPage from './pages/ResultsPage';
-import UserManagement from './pages/UserManagement';
-import ManageQuestions from './pages/ManageQuestions';
+import { useAuthStore } from './store';
+import LandingPage from '../pages/LandingPage';
+import LoginPage from '../pages/LoginPage';
+import AppLayout from '../components/AppLayout';
+import Dashboard from '../pages/Dashboard';
+import ExamList from '../pages/ExamList';
+import ExamSession from '../pages/ExamSession';
+import ResultsPage from '../pages/ResultsPage';
+import UserManagement from '../pages/UserManagement';
+import ManageQuestions from '../pages/ManageQuestions';
 
 // Route guards
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
