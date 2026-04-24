@@ -34,22 +34,26 @@ async function startServer() {
       appType: "spa",
     });
     
-    // Vite middleware handles assets
+    // Middleware Vite menangani aset statis (JS, CSS, Gambar)
     app.use(vite.middlewares);
 
-    // Fallback SPA for deep links in dev
+    // Fallback SPA: Kirim index.html untuk semua rute navigasi
     app.get("*", async (req, res, next) => {
       const url = req.originalUrl;
       
-      // Ignore items with extensions (likely missing assets)
+      // Jika request adalah aset (ada titik di path tapi bukan .html), biarkan next()
       if (url.includes(".") && !url.endsWith(".html")) {
         return next();
       }
 
       try {
-        const indexPath = path.resolve(__dirname, "index.html");
-        let template = fs.readFileSync(indexPath, "utf-8");
+        // Gunakan path absolut ke index.html di root
+        const templatePath = path.resolve(process.cwd(), "index.html");
+        let template = fs.readFileSync(templatePath, "utf-8");
+        
+        // Transform template melalui Vite (untuk HMR dan inject scripts)
         template = await vite.transformIndexHtml(url, template);
+        
         res.status(200).set({ "Content-Type": "text/html" }).end(template);
       } catch (e: any) {
         vite.ssrFixStacktrace(e);
@@ -57,21 +61,17 @@ async function startServer() {
       }
     });
   } else {
-    // Production Mode
+    // Mode Produksi
     const distPath = path.join(process.cwd(), "dist");
     
-    // Serve static files from dist
-    app.use(express.static(distPath, {
-      index: false // We will handle index manually for SPA fallback
-    }));
+    app.use(express.static(distPath, { index: false }));
     
-    // Catch-all SPA route
     app.get("*", (req, res) => {
       const indexPath = path.join(distPath, "index.html");
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
       } else {
-        res.status(404).send("Production build not found. Please run npm run build.");
+        res.status(404).send("Build production tidak ditemukan. Jalankan 'npm run build' terlebih dahulu.");
       }
     });
   }
